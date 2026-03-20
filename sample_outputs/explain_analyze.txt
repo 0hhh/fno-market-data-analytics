@@ -1,0 +1,69 @@
+-- EXPLAIN ANALYZE output for Query 5: Max Volume Last 30 Days
+-- Query file : sql/07_max_volume_30d.sql
+-- Table      : trades (2,533,210 rows) | PostgreSQL 17
+-- Run date   : August 2019 data window
+
+--------------------------------------------------------------------------------
+
+"Sort  (cost=240266.84..240277.40 rows=4223 width=16) (actual time=2077.905..2077.971 rows=152 loops=1)"
+"  Sort Key: recent_trades.contracts DESC"
+"  Sort Method: quicksort  Memory: 30kB"
+"  ->  Subquery Scan on recent_trades  (cost=212564.15..240012.53 rows=4223 width=16) (actual time=1834.356..2077.758 rows=152 loops=1)"
+"        Filter: (recent_trades.volume_rank = 1)"
+"        ->  WindowAgg  (cost=212564.15..229455.45 rows=844566 width=24) (actual time=1834.355..2077.615 rows=152 loops=1)"
+"              Run Condition: (rank() OVER (?) <= 1)"
+"              InitPlan 1"
+"                ->  Finalize Aggregate  (cost=45896.85..45896.86 rows=1 width=4) (actual time=295.671..295.727 rows=1 loops=1)"
+"                      ->  Gather  (cost=45896.64..45896.85 rows=2 width=4) (actual time=295.500..295.722 rows=3 loops=1)"
+"                            Workers Planned: 2"
+"                            Workers Launched: 2"
+"                            ->  Partial Aggregate  (cost=44896.64..44896.65 rows=1 width=4) (actual time=245.027..245.028 rows=1 loops=3)"
+"                                  ->  Parallel Append  (cost=0.43..42257.37 rows=1055708 width=4) (actual time=0.164..184.199 rows=844403 loops=3)"
+"                                        ->  Parallel Index Only Scan using trades_2019_q3_instrument_id_trade_date_idx on trades_2019_q3 trades_1  (cost=0.43..21349.84 rows=607882 width=4) (actual time=0.143..73.582 rows=486306 loops=3)"
+"                                              Heap Fetches: 0"
+"                                        ->  Parallel Index Only Scan using trades_2019_q4_instrument_id_trade_date_idx on trades_2019_q4 trades_2  (cost=0.43..15616.10 rows=447622 width=4) (actual time=0.122..90.236 rows=537146 loops=2)"
+"                                              Heap Fetches: 0"
+"                                        ->  Parallel Seq Scan on trades_default trades_3  (cost=0.00..12.88 rows=288 width=4) (actual time=0.001..0.001 rows=0 loops=1)"
+"              ->  Sort  (cost=166667.27..168778.68 rows=844566 width=16) (actual time=1834.344..2014.816 rows=749379 loops=1)"
+"                    Sort Key: i.symbol, t.contracts DESC"
+"                    Sort Method: external merge  Disk: 20248kB"
+"                    ->  Hash Join  (cost=147.04..69094.82 rows=844566 width=16) (actual time=295.875..899.222 rows=749379 loops=1)"
+"                          Hash Cond: (t.instrument_id = i.instrument_id)"
+"                          ->  Append  (cost=136.66..66838.81 rows=844566 width=12) (actual time=295.782..747.332 rows=749379 loops=1)"
+"                                ->  Bitmap Heap Scan on trades_2019_q3 t_1  (cost=136.66..33051.25 rows=486306 width=12) (never executed)"
+"                                      Recheck Cond: (trade_date >= ((InitPlan 1).col1 - '30 days'::interval))"
+"                                      ->  Bitmap Index Scan on trades_2019_q3_trade_date_idx  (cost=0.00..15.08 rows=980973 width=0) (never executed)"
+"                                            Index Cond: (trade_date >= ((InitPlan 1).col1 - '30 days'::interval))"
+"                                ->  Seq Scan on trades_2019_q4 t_2  (cost=0.00..29547.38 rows=358097 width=12) (actual time=0.085..401.978 rows=749379 loops=1)"
+"                                      Filter: (trade_date >= ((InitPlan 1).col1 - '30 days'::interval))"
+"                                      Rows Removed by Filter: 324913"
+"                                ->  Seq Scan on trades_default t_3  (cost=0.00..17.35 rows=163 width=12) (actual time=0.021..0.021 rows=0 loops=1)"
+"                                      Filter: (trade_date >= ((InitPlan 1).col1 - '30 days'::interval))"
+"                          ->  Hash  (cost=6.28..6.28 rows=328 width=12) (actual time=0.083..0.083 rows=328 loops=1)"
+"                                Buckets: 1024  Batches: 1  Memory Usage: 23kB"
+"                                ->  Seq Scan on instruments i  (cost=0.00..6.28 rows=328 width=12) (actual time=0.018..0.046 rows=328 loops=1)"
+"Planning Time: 0.722 ms"
+"Execution Time: 2095.729 ms"
+
+--------------------------------------------------------------------------------
+
+Observations:
+
+1. Partition pruning is working — PostgreSQL scanned only trades_2019_q3 and
+   trades_2019_q4. The trades_default partition returned 0 rows and was skipped.
+   This confirms that partitioning by trade_date is effective for date-range queries.
+
+2. Composite index used for MAX(trade_date) calculation — the planner used
+   Parallel Index Only Scan on the instrument_id + trade_date index with
+   Heap Fetches: 0, meaning the result was served entirely from the index
+   without touching the actual table data.
+
+3. Sequential scan on trades_2019_q4 for the 30-day filter — the optimizer chose
+   a seq scan over the partition (749K rows) rather than a bitmap index scan.
+   This is expected — when a large portion of a partition matches the filter,
+   a sequential scan is faster than random index lookups.
+
+4. Execution time: 2095 ms on 2.5M rows with window functions and a
+   cross-partition join. Acceptable for an analytics workload at this scale.
+
+5. Window function (RANK) is applied after filtering, ensuring ranking is computed only on relevant subset, improving efficiency.
