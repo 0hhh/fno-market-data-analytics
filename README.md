@@ -1,4 +1,4 @@
-# F&O Market Data Analytics
+# NSE F&O Market Data Analytics
 
 ## Overview
 
@@ -20,12 +20,12 @@ The system is designed for trading analytics use cases such as open interest ana
 
 ## Dataset
 
-- **Source:** [NSE Future and Options Dataset 3M – Kaggle](https://www.kaggle.com/datasets/sunnysai12345/nse-future-and-options-dataset-3m)
-- **Size:** ~2.5 million rows
+- **Source:** [Kaggle - NSE Future and Options Dataset 3M](https://www.kaggle.com/datasets/sunnysai12345/nse-future-and-options-dataset-3m)
+- **Size:** 2.5 million rows
 - **Period:** August – October 2019
 - **Instruments:** FUTIDX, FUTSTK, OPTIDX, OPTSTK
 
-> `3mfanddо.csv` is not committed due to file size. Download from the link above and place in `data/`.
+> `3mfanddо.csv` is not uploaded due to file size. Download from the link above and place in `data/`.
 > `sampledata.csv` (500 rows) is included for reference.
 
 ---
@@ -108,7 +108,6 @@ Full workflow in `notebook/data_loading.ipynb`.
 fno-market-data-analytics/
 │
 ├── README.md
-├── Problem_statement.docx
 ├── er_diagram/
 │   └── er_diagram.drawio.png
 ├── data/
@@ -167,8 +166,6 @@ psql -U postgres -d fno_db -f sql/03_top_oi_change.sql
 
 ## Notes
 
-This project demonstrates database design, SQL querying, and performance optimization for financial time-series data. The schema is built to support multi-exchange ingestion and higher-frequency datasets with minimal changes, making it suitable for real-world trading analytics systems.
+This project demonstrates database design, SQL querying, and performance optimization for financial time-series data. The schema is built to support multi-exchange ingestion and higher-frequency datasets with minimal changes, making it suitable for real-world trading analytics systems. The partitioning and indexing strategy scales to 10M+ rows with daily partitions and BRIN indexes it can support HFT-level data ingestion with minimal schema changes.
 
 ---
-
-*Thank you for visiting..*
